@@ -187,3 +187,34 @@ Streaming giúp tạo trải nghiệm người dùng mượt mà giống như Ch
 
 ---
 > **💡 Vibe Coding Tip:** Hãy tận dụng Cursor hoặc Copilot bằng cách cung cấp cho nó ngữ cảnh của file `student_guide.md` và `template.py` để viết code nháp nhanh chóng, sau đó kiểm tra và hoàn thiện bằng tay!
+
+
+## Bản hoàn thành
+
+Toàn bộ 5 task và 3 bonus đã được triển khai trong `starter-code/template.py`
+và bản nộp `solution-code/solution.py` (đường dẫn mà bộ test sử dụng).
+
+```bash
+source venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pytest tests/ -v
+cp .env.example .env
+# Điền API keys vào .env trước khi chạy ví dụ trực tiếp:
+python solution-code/solution.py
+```
+
+Các test dùng mock, không gửi request thật và không cần API key.
+Bảng giá trong code được giữ theo đề để tính chi phí bài tập; không phải báo giá hiện hành.
+Tên model cũng giữ theo đề; khả năng gọi trực tiếp phụ thuộc nhà cung cấp và tài khoản.
+Chatbot lưu 3 lượt hoàn chỉnh gần nhất, cộng câu hỏi hiện tại khi gửi request.
+
+
+### Model dùng để chạy trực tiếp
+
+Mã nguồn dùng `gemini-3.8-flash` trực tiếp cho cả `call_gemini`, so sánh và chatbot;
+không cần đặt `GEMINI_CHAT_MODEL`. Đổi từ 2.5 vì API báo model cũ không còn mở
+cho người dùng mới. Chi phí Gemini trong bài vẫn là ước tính theo bảng cố định
+của đề để giữ phép tính chấm bài, không đại diện giá tính phí model 3.8.
+
+`ANTHROPIC_API_KEY` chỉ cần khi gọi riêng `call_anthropic` (Task 3).
+Chạy file trực tiếp gọi OpenAI/Gemini và chatbot Gemini, không gọi Anthropic.

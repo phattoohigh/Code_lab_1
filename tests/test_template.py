@@ -207,7 +207,7 @@ class TestBatchCompareAndFormat(unittest.TestCase):
 
     def test_batch_runs_and_formats_table(self):
         with patch.object(_m, "compare_models") as mock_comp:
-            def _get_mock():
+            def _get_mock(prompt):
                 return {
                     "gpt4o": {"response": "GPT-4o response content here", "latency": 0.5, "cost": 0.00045, "input_tokens": 10, "output_tokens": 20},
                     "gpt4o_mini": {"response": "GPT-4o-Mini response content here", "latency": 0.3, "cost": 0.0000135, "input_tokens": 10, "output_tokens": 20},
@@ -218,6 +218,7 @@ class TestBatchCompareAndFormat(unittest.TestCase):
             results = batch_compare(["Q1", "Q2"])
             self.assertEqual(len(results), 2)
             self.assertEqual(results[0]["prompt"], "Q1")
+            self.assertEqual(mock_comp.call_args_list, [unittest.mock.call("Q1"), unittest.mock.call("Q2")])
 
             table = format_comparison_table(results)
             self.assertIsInstance(table, str)
@@ -237,6 +238,52 @@ class TestStreamingChatbot(unittest.TestCase):
             streaming_chatbot()
         except SystemExit:
             pass
+
+
+
+
+class TestAdditionalBehaviour(unittest.TestCase):
+    def test_retry_delays_and_total_attempts(self):
+        fn = MagicMock(side_effect=RuntimeError("failure"))
+        with patch.object(_m.time, "sleep") as sleep:
+            with self.assertRaises(RuntimeError):
+                retry_with_backoff(fn, max_retries=3, base_delay=0.1)
+        self.assertEqual(fn.call_count, 4)
+        self.assertEqual(sleep.call_args_list, [
+            unittest.mock.call(0.1), unittest.mock.call(0.2), unittest.mock.call(0.4),
+        ])
+
+    @patch("builtins.print")
+    @patch("builtins.input", side_effect=["Q1", "Q2", "Q3", "Q4", "Q5", "exit"])
+    @patch("google.genai.Client")
+    def test_streams_and_limits_history(self, client_class, mock_input, mock_print):
+        from types import SimpleNamespace
+        generate = client_class.return_value.models.generate_content_stream
+        generate.side_effect = lambda **kwargs: iter([
+            SimpleNamespace(text=None), SimpleNamespace(text="Hello"),
+            SimpleNamespace(text=" world"),
+        ])
+        streaming_chatbot()
+        calls = generate.call_args_list
+        self.assertEqual([len(call.kwargs["contents"]) for call in calls], [1, 3, 5, 7, 7])
+        last_history = calls[-1].kwargs["contents"]
+        self.assertEqual(last_history[0].parts[0].text, "Q2")
+        self.assertEqual(last_history[-1].parts[0].text, "Q5")
+        self.assertEqual(last_history[1].role, "model")
+        self.assertEqual(last_history[1].parts[0].text, "Hello world")
+        mock_print.assert_any_call("Hello", end="", flush=True)
+        mock_print.assert_any_call(" world", end="", flush=True)
+
+    def test_table_escapes_cells_and_truncates(self):
+        stats = {"response": "x" * 60, "latency": 0.1, "cost": 0,
+                 "input_tokens": 1, "output_tokens": 2}
+        table = format_comparison_table([{
+            "prompt": "A|B\nC", "gpt4o": stats,
+            "gpt4o_mini": stats, "gemini_flash": stats,
+        }])
+        self.assertIn("A\\|B C", table)
+        self.assertIn("x" * 47 + "...", table)
+        self.assertNotIn("x" * 51, table)
 
 
 if __name__ == "__main__":
